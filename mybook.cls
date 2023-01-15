@@ -6,14 +6,17 @@
 %% available at https://github.com/ElegantLaTeX/ElegantBook
 %
 %%%%%%%%%%%%%%%%%%%%%
-% % !Mode:: "TeX:UTF-8"
 \NeedsTeXFormat{LaTeX2e}
 \ProvidesClass{mybook}[2022/04/09 v4.3 ElegantBook document class]
-
+% ------ PDF Compression ----------
+%\pdfcompresslevel=0
+%\pdfobjcompresslevel=0
 
 %%%
 \RequirePackage{kvoptions}
+\usepackage[cache=false, outputdir=build]{minted}
 \RequirePackage{etoolbox}
+\usepackage{listofitems}
 \SetupKeyvalOptions{family=ELEGANT, prefix=ELEGANT@, setkeys=\kvsetkeys}
 \newcommand{\ekv}[1]{\kvsetkeys{ELEGANT}{#1}}
 
@@ -71,9 +74,6 @@
 \DeclareVoidOption{biber}{\ekv{bibend=biber}}
 \DeclareVoidOption{bibtex}{\ekv{bibend=bibtex}}
 
-
-% ----- Math option -----
-\newcommand\mailto[1]{\href{mailto:#1}{\nolinkurl{#1}}}
 
 % ----- Title Style -----
 \DeclareStringOption[hang]{titlestyle}[hang]
@@ -145,7 +145,7 @@
     \RequirePackage[lite]{mtpro2}
 }{\relax}
 
-\usepackage{titletoc}
+\RequirePackage{titletoc}
 \setcounter{tocdepth}{2}
 \renewcommand{\baselinestretch}{1.2}
 
@@ -156,7 +156,6 @@
 
 \ifpdftex
 \RequirePackage{newtxtext}
-%\RequirePackage[scaled=.90]{helvet}
 \RequirePackage{tgadventor}
 \else
 \RequirePackage[no-math]{fontspec}
@@ -272,25 +271,17 @@
 \definecolor{steelblue}{RGB}{70, 130, 180}
 \definecolor{chocolate}{RGB}{210, 105, 30}
 \definecolor{mediumseagreen}{RGB}{60, 179, 113}
-\definecolor{ocre}{RGB}{243,102,25}
 \definecolor{limegreen}{RGB}{50, 205, 50}
 \definecolor{burlywood}{RGB}{222, 184, 135}
-\definecolor{palered}{RGB}{221,44,0}
 \definecolor{frenchplum}{RGB}{190,20,83}
 \definecolor{rosybrown}{RGB}{188, 143, 143}
-\definecolor{mediumspringgreen}{RGB}{0, 250, 154}
-
 \definecolor{lightgrey}{RGB}{112, 128, 144}
 \definecolor{darkteal}{RGB}{0, 96, 100}
-\definecolor{lightteal}{RGB}{119, 136, 153}
+\definecolor{leftframe}{RGB}{116, 116, 116}
 % ----- Title Style -----
 \ifdefstring{\ELEGANT@titlestyle}{hang}{\def\style{hang}}{\relax}
 \ifdefstring{\ELEGANT@titlestyle}{display}{\def\style{display}}{\relax}
 
-% reference:
-% https://tex.stackexchange.com/questions/58506/how-to-make-a-new-command-similar-to-author
-% https://pastebin.com/C8W4axzV
-\newcommand\email[1]{\href{mailto:#1}{\nolinkurl{#1}}}
 
 \global\let\@title\@empty
 \global\let\@author\@empty
@@ -300,7 +291,6 @@
 \newcommand{\version}[1]{\gdef\@version{#1}}
 \newcommand{\extrainfo}[1]{\gdef\@extrainfo{#1}}
 
-\RequirePackage{mwe}
 \newcommand{\logo}[1]{\gdef\@logo{#1}}
 \newcommand{\cover}[1]{\gdef\@cover{#1}}
 
@@ -330,13 +320,11 @@
 \RequirePackage{cancel}
 \RequirePackage{physics}
 \RequirePackage{amsmath,mathrsfs,amsfonts,amssymb,mathtools,halloweenmath,cases}
-\providecommand\qed{}
-\renewcommand{\qed}{\hfill\ensuremath{\blacksquare}}
+\newcommand{\qed}{\hfill\ensuremath{\blacksquare}}
 \RequirePackage{booktabs}
 \RequirePackage{multicol,multirow}
 
-\RequirePackage{fancyvrb}
-\RequirePackage{makecell,lipsum,hologo}
+\RequirePackage{makecell}
 
 \RequirePackage[center,pagestyles]{titlesec}
 \RequirePackage[title,titletoc,header]{appendix}
@@ -794,18 +782,8 @@
         \end{multicols}
     \end{tcolorbox}}
 
-\RequirePackage{adforn}
 
-\newenvironment{problemset}[1][\xchaptertitle~\exercisename]{
-    \vspace*{10pt}
-    \begin{center}
-        \phantomsection\addcontentsline{toc}{section}{\texorpdfstring{\xchaptertitle~\exercisename}{\exercisename}}
-        % \markboth{#1}{\rightmark}
-        \markright{#1}
-        \textcolor{structurecolor}{\Large\bfseries\adftripleflourishleft~#1~\adftripleflourishright}
-    \end{center}
-    \begin{enumerate}}{
-    \end{enumerate}}
+
 
 \def\relsec{\endgroup start}
 \def\endrelsec{end\begingroup\def \@currenvir {relsec}}
@@ -935,36 +913,6 @@
     backgroundcolor=\color{lightgrey}
 }
 
-\newcommand\bmmax{0}
-\RequirePackage{bm}
-
-% add the list of change history
-\newcommand{\dateinfoline}[2]{
-    \noindent\makebox[0pt][r]{%
-        \makebox[-3em][r]{%
-            \small
-            \textbf{\textcolor{structurecolor}{#1}}}\;\;}%
-    {\updatename\ignorespaces#2}}
-
-\newcommand{\datechange}[2]{%
-    \noindent{\makebox[\textwidth][r]{\color{structurecolor}\rule{1.15\textwidth}{.4pt}}}
-    \dateinfoline{#1}{#2}
-    \addcontentsline{dates}{section}{#1 -- #2}}
-
-\newcommand{\listofchanges}{%
-    \begingroup
-    \renewcommand{\contentsname}{\historyname}
-    \let\old@starttoc\@starttoc
-    \def\@starttoc##1{
-        \old@starttoc{dates}}
-    \tableofcontents%
-    \endgroup}
-% https://tex.stackexchange.com/questions/472931/list-of-all-dates-in-a-document
-
-\newenvironment{change}{
-    \begin{enumerate}[label=\small\protect\circled{\arabic*}]}{
-    \end{enumerate}}
-
 
 
 \renewcommand\tableofcontents{%
@@ -1007,16 +955,23 @@ beforechap\newpage%
         \setlength{\cftchapnumwidth}{\widthof{\textbf{Appendix~999}}}
     }%
 }
-
-
 % restore the tt default family to lmodern tt family
 \renewcommand\ttdefault{lmtt}
-\usepackage{algorithm}% http://ctan.org/pkg/algorithms
-\usepackage{algpseudocode}% http://ctan.org/pkg/algorithmicx
-\usepackage{float}
-\usepackage{pgfplots}\pgfplotsset{compat = newest}
-\usepackage{tgadventor}
-\usepackage[nospace]{varioref}
+\RequirePackage{algorithm}% http://ctan.org/pkg/algorithms
+\RequirePackage[noend]{algpseudocode}% http://ctan.org/pkg/algorithmicx
+% ---------- algorithmicx custom commands ----------
+\newcommand*{\Let}[2]{\State #1 $\gets$ \parbox[t]{\linegoal}{#2\strut}}
+\algnewcommand\algorithmicinput{\textbf{INPUT: }}
+\algnewcommand\Input{\item[\algorithmicinput]}
+\algnewcommand\algorithmicoutput{\textbf{OUTPUT: }}
+\algnewcommand\Output{\item[\algorithmicoutput]}
+\newcommand\sForAll[2]{ \ForAll{#1}#2\EndFor} % snappy version of \ForAll...\EndFor
+\newcommand\sIf[2]{ \If{#1}#2\EndIf}          % snappy version of \If...\EndIf
+% -----------------------------------------------
+\RequirePackage{float}
+\RequirePackage{pgfplots}\pgfplotsset{compat = newest}
+\RequirePackage{parskip}
+\RequirePackage[nospace]{varioref}
 \renewcommand{\familydefault}{\sfdefault}
 \RequirePackage[italian]{cleveref}
 \crefname{tcb@cnt@problem}{prob.}{probs.}
@@ -1033,6 +988,10 @@ beforechap\newpage%
 \Crefname{tcb@cnt@proposition}{Prop.}{Props.}
 \crefname{tcb@cnt@corollary}{cor.}{cors}
 \Crefname{tcb@cnt@corollary}{Cor.}{Cors.}
+\crefname{tcb@cnt@remark}{oss.}{oss.}
+\Crefname{tcb@cnt@remark}{Oss.}{Oss.}
+\crefname{tcb@cnt@example}{es.}{ess.}
+\Crefname{tcb@cnt@example}{Es.}{Ess.}
 % ------ TOC customizations --------------------------------
 \contentsmargin{0cm}
 \titlecontents{chapter} % Section type being modified
@@ -1084,6 +1043,23 @@ beforechap\newpage%
 {\contentslabel[\thecontentslabel]{1.25cm}\hspace{0.5cm}} % Formatting of numbered sections of this type
 {} % Formatting of numberless sections of this type
 {~{\normalfont\titlerule*[6pt]{.}}~\thecontentspage} % Formatting of the filler to the right of the heading and the page number
+
+% ------ Code Listing Setup --------------------------------
+\tcbuselibrary{minted,skins}
+\definecolor{codeframe}{RGB}{116, 116, 116}
+\definecolor{listback}{RGB}{40, 40, 40}
+\newtcblisting{code}[1][]{%
+    listing engine = minted,
+    minted style=gruvbox-dark,
+    minted language=#1,
+    minted options={fontsize=\small,breaklines,autogobble,linenos,numbersep=3mm},
+    colback=listback, listing only,
+    left=5mm, enhanced,
+    overlay={\begin{tcbclipinterior}\fill[codeframe] (frame.south west)
+    rectangle ([xshift=5mm]frame.north west);\end{tcbclipinterior}},
+    skin = tile
+}
+
 % ------ custom command file imports --------------------------------
 \input{mycmd.tex}
 
