@@ -44,3 +44,174 @@ Supponendo che il programma sia eseguito su una macchina con supporto al multi-t
 
 Implementando l'algoritmo, ad esempio in C, sfruttando un sistema di \textit{logging} facendo consegnare ai thread il loro numero d'ordine al momento di essere serviti, si potrebbe vedere che ad un certo punto il numero depositato avrebbe avuto un incremento doppio rispetto al precedente o che qualche numero d'ordine salterebbe.
 Questo comportamento non è dovuto al codice sorgente né al processo di compilazione, ma è dovuto al fatto che \textbf{nessuna macchina} è \textbf{off-the-shelf sequentially consistent} (OSSC), ovvero che nessuna macchina esegue in modo sequenziale i thread che gli vengono consegnati ma a run-time il processore compie delle decisioni che possono influenzare il comportamento del programma e, pertanto, andrebbero considerate nel momento in cui si scrive un programma concorrente.
+
+\section{Architetture per la Parallelizzazione}\label{sec:parrallel-arch}
+Il modello hardware classico è quello di Von Neumann, che prevede:
+\begin{itemize}
+    \item Astrazione di una singola CPU.
+    \item Astrazione di una singola memoria.
+    \item Astrazione di un singolo control-flow, fatto di istruzioni sequenziali (come una pipeline a 1 stage).
+    \item Transizioni di stato nell'HW indipendenti poiché ce n'è solo una in esecuzione ad ogni istante di tempo. 
+    \item L'immagine della memoria è definita allo startup di ogni istruzione.
+\end{itemize}
+Questo modello non è fatto per l'esecuzione parallela, che richiede archietture più complesse e strategie aggiuntive (come lo \textbf{scheduling}) affinché il program-flow sia eseguito come specificato nel sorgente. Difatti si può notare che il modello di Von Neumann non prevede né che il risultato di un'istruzione si propaghi nel tempo né che l'istruzione successiva possa dipendere da una delle precedenti.
+
+L'approccio moderno di pensare le architetture di calcolo piuttosto che essere basato sul program-flow è basato appunto sul concetto di scheduling per fare qualcosa che sia equivalente al flusso delle istruzioni. Lo scheduling può essere suddiviso in due categorie:
+\begin{proposition}[Hardware Scheduling]\label{prop:hw-sched}
+    A livello hardware, lo scheduling definisce:
+    \begin{itemize}
+        \item L'esecuzuone delle istruzioni di un singolo program-flow.
+        \item L'esecuzione in parallelo (\textbf{speculativamente}) di diversi program-flow.
+        \item La propagazione dei valori verso le unità di memoria.
+    \end{itemize}
+\end{proposition}
+\begin{proposition}[Software Scheduling]\label{prop:sw-sched}
+    A livello software, lo scheduling definisce:
+    \begin{itemize}
+        \item I \textbf{time-frames} per l'esecuzuone dei singoli thread sull'HW.
+        \item Le modalità di gestione di tutte le \textbf{attività di sistema} (\textit{task}), come la gestione dei time-frames per gli interrupt.
+        \item Supporti software per la sincronizzazione (sia di task che thread).
+    \end{itemize}
+\end{proposition}
+Possiamo definire due concetti di parallellismo:
+\begin{definition}[Istruction Level Parallelism]\label{def:ilp}
+    \textbf{Istruction Level Parallelism} (ILP) è un concetto di parallelismo basato sul fatto che nella stessa finestra temporale in cui un'istruzione produce l'output, un'altra istruzione può essere eseguita in parallelo.
+    In questo modo è possibile processare $2$ o più istruzioni nello stesso ciclo di clock\fntext{Anche se una singola istruzione richiede più cicli viene garantito che sia completata prima dell'esecuzione successiva}.
+\end{definition}
+\begin{definition}[Thread Level Parallelism]\label{def:tlp}
+    \textbf{Thread Level Parallelism} (TLP) è un concetto di parallelismo basato sull'esecuzione multipla di diversi program-flow che portano avanti la logica del programma, che può essere visto come la combinazione di molteplici flussi concorrenti.
+\end{definition}
+\begin{remark}
+    Un'architettura ILP non è per forza anche TLP, ma è sempre vero il viceversa.
+\end{remark}
+La parallelizzazione permette di aumentare la velocità d'esecuzione di un programma e i suoi supporti aumentano la velocità del processore, spesso misurata in $Ghz$. Tuttavia, questa unità di misura in realtà non misura esclusivamente la velocità di esecuzione, ma anche la quantità di cicli di clock eseguiti e, analogamente, la quantità di istruzioni processate, le interazioni con i diversi componenti hardware ed eventuali asimmetrie e pattern d'accesso ai dati.
+\begin{remark}[Categorie di Programmi]
+    La velocità di un processore non è l'unica cosa che limita la velocità di esecuzione di un programma. Possiamo identificare tre categorie di essi:
+    \begin{itemize}
+        \item \textbf{CPU-Bound}: programmi che richiedono un elevato tempo di CPU per essere eseguiti.
+        \item \textbf{I/O-Bound}: programmi che chiamano servizi bloccanti del kernel (come la lettura da disco) che richiedono un elevato tempo di I/O e usano la CPU in maniera intervallata.
+        \item \textbf{Memory-Bound}: programmi che richiedono un elevato tempo di accesso alla memoria.
+    \end{itemize}
+\end{remark}
+I sistemi di calcolo moderni sono evoluti molto dal punto di vista della velocità dei processori, ma meno dal punto di vista della velocità delle memorie. Questo gap ha portato alla necessità di sviluppare architetture hardware ILP che permettano un utilizzo costante della CPU anche quando questa è in attesa di dati dalla memoria.
+\subsection{Pipeline}
+Le pipeline rappresentano una tecnica basilare di fare ILP attraverso l'\textbf{overlapping} di più istruzioni. La tecnica è hardware-based ed unisce scheduling al parallelismo per costruire un modello detto a \textbf{data-flow}, ovvero basato sul fatto che:
+\begin{definition}[Data-Flow Model]\label{def:dataflow}
+    Il \textbf{data-flow model} è un modello di calcolo basato sul fatto che la sorgente di un'istruzione dovrebbe essere letta basandosi sull'ultimo aggiornamento fatto durante la sequenza delle istruzioni.
+\end{definition}
+In particolare, abbiamo parallellismo in quanto \textbf{non c'è} una netta \textbf{separazione temporale} tra le finestre d'esecuzione delle istruzioni e abbiamo scheduling in quanto \textbf{non necessariamente} la sequenza di istruzioni processate rispetta quello che è scritto nel programma (in questo caso si intendo proprio l'eseguibile).
+
+L'unico vincolo che una pipeline deve avere è che deve essere rispettato il vincolo di \textbf{causalità}: ogni istruzione deve poter essere eseguita solo dopo che tutte le istruzioni da cui dipende sono state eseguite. Ad esempio, se un'istruzione $A$ dipende da un'istruzione $B$ e $B$ dipende da un'istruzione $C$, allora $A$ può essere eseguita solo dopo che $C$ è stata eseguita e così via.
+
+\begin{remark}[Fasi di una Pipeline]
+    Le fasi di una pipeline sono 5:
+    \begin{enumerate}
+        \item \textbf{Istruction Fetch}: l'istruzione viene caricata dalla memoria.
+        \item \textbf{Istruction Decode}: l'istruzione viene decodificata e viene generato il controllo per l'esecuzione.
+        \item \textbf{Load Operands}: i dati necessari per l'esecuzione dell'istruzione vengono caricati dalla memoria.
+        \item \textbf{Execute}: l'istruzione viene eseguita.
+        \item \textbf{Write Back}: il risultato dell'istruzione viene scritto nella memoria.
+    \end{enumerate}
+    Una pipeline single stage è una pipeline che ha una sola fase di esecuzione. Una pipeline multi-stage è una pipeline che ha più fasi di esecuzione.
+\end{remark}
+Se una pipeline ha più fasi di esecuzione allora è possibie fare in modo che le istruzioni siano eseguite in parallelo, garantendo l'ILP. Ad esempio: se un'istruzione uscita dalla fase di fetch entra in quella di decode, la prossima istruzione può occupare i componenti hardware per il fetch. In questo modo, la pipeline è in grado di eseguire due istruzioni in parallelo, anche se la singola fase d'esecuzione richiede più cicli di clock rispetto alla singola istruzione.
+
+\begin{theorem}[Pipeline Speedup Analysis]\label{thm:pipeline}
+    Supponiamo di voler fornire $N$ risultati, uno per ogni istruzione, e di avere $L$ stage di processamento con un ciclo di clock di lunghezza $T$. Senza una pipeline, il tempo d'esecuzione espresso come ritardo ingresso uscita è pari a:
+    \begin{equation}
+        d = N \cdot L \cdot T
+    \end{equation}
+    Con una pipeline, il tempo d'esecuzione è pari a:
+    \begin{equation}
+        d = (N+L)\cdot T
+    \end{equation}
+    Dove lo speedup è dat da un fattore:
+    \begin{equation}
+        \frac{N\cdot L}{N+L}
+    \end{equation}
+    Che per $N$ grande è circa pari a $L$.
+\end{theorem}
+\begin{remark}
+    E' vero che incrementando il numero di stage in una pipeline si ottiene una velocità maggiore, ma questo non è automatico: se si aumenta il numero di stage, si aumenta anche il numero di cicli di clock necessari per eseguire un'istruzione e propagarne il risultato.
+
+    Infatti, i processori moderni hanno un numero di stage dell'ordine delle decine.
+\end{remark}
+C'è però un problema legato al pipelining: se deve essere eseguita un'istruzione di salto, il processore è in grado di capire dove stiamo saltando nel program-flow \textbf{solo alla finalizzazione} dell'istruzione (ovvero quando in WB viene riportata l'informazione indietro). Tuttavia, durante il processamento di questo salto su uno stage della pipeline nel processore stanno scorrendo altre istruzioni che vengono eseguite in parallelo ma inutilmente.
+\begin{remark}[Problemi della pipeline]
+    \begin{itemize}
+        \item \textbf{Control Dependency:} se un'istruzione di salto è in esecuzione, tutte le istruzioni successive non possono essere eseguite.
+        \item \textbf{Data Dependency:} un'istruzione richiede un dato che non è ancora stato calcolato da un'istruzione precedente.
+    \end{itemize}
+\end{remark}
+\section{Ottimizzazione della pipeline: OOO-Execution}
+Al fine di ottimizzare la pipeline sono state proposte diverse soluzioni.
+\begin{itemize}
+    \item \textbf{Hardware Propagation}: tecnica hardware per rendere disponibili alcuni dati prodotti dalla pipeline prima che siano arrivato allo stage di WB. In particolare il dato viene salvato in appositi registri (o in memoria) alla fine dell'execution stage.
+    \item \textbf{Software Stall}: inseriamo, in un flusso di programma, delle istruzioni di stallo fra due istruzioni. Al momento di un salto di cui ancora non si conosce il risultato, si inseriscono degli stalli finché la destinazione non è nota.
+    Questa soluzione è tipicamente utilizzata dai compilatori.
+    \item \textbf{Software Re-Sequencing} (o Scheduling): Al momento di comilazione, se c'è un blocco atomico di programma, si ri-organizza il blococ di istruzioni in modo che le istruzioni che si dipendono siano più distanziate fra loro. Questo permette di evitare stalli.
+    \item \textbf{Branch Prediction}: si predice il risultato di un salto prima che l'istruzione venga eseguita. Se la predizione è corretta, allora non si ha bisogno di stalli. Se la predizione è errata, allora si ha bisogno di stalli.
+\end{itemize}
+Le proposte precedenti sono state superate infine da una nuova strategia di ottimizzazione chiamata \textbf{Out-of-Order Execution} (OOO-Execution).
+
+\begin{definition}[OOO-Execution]\label{def:ooo-ex}
+    L'OOO è una tecnica che permette l'esecuzione efficiente di istruzioni attuando un \textbf{riordinamento} delle istruzioni in modo da eseguire prima quelle indipendenti e poi quelle che necessitano del completamento di altre istruzioni.
+    Il superamento di istruzioni indipendenti viene portato avanti anche fino al completamento \textbf{senza rendere visibile il risultato all'ISA}, in modo da \textbf{non violare} il program-flow.
+\end{definition}
+\begin{remark}
+    L'OOO non è basato su come le istruzioni toccano l'hardware esposto dall'ISA, ovvero i registri. Inoltre, non viene rispettato l'esatto ordine con cui i sorgenti vengono programmati ma viene comunque rispettato il program-flow.
+\end{remark}
+In questo contesto sono importanti due concetti:
+\begin{definition}[Emission]\label{def:emission}
+    L'emissione è il processo di immettere istruzioni all'interno della pipeline.
+\end{definition}
+\begin{definition}[Retire]\label{def:retire}
+    Il ritiro è l'azione di commit delle istruzioni, e rende i loro side effects "visibili" alle risorse hardware esposte all'ISA.
+\end{definition}
+\subsection{Algoritmo di Tomasulo}\label{subsec:tomasulo}
+L'algoritmo di Tomasulo è un algoritmo di scheduling che permette di ottimizzare l'esecuzione di istruzioni in un processore pipelined permettendo di risolvere il problema di \textbf{data dependency}.
+
+Analizziamo i conflitti sui dati che deve risolvere l'algoritmo di Tomasulo e poi il suo funzionamento:
+\begin{proposition}[Tomasulo's Instruction Conflicts]
+    Supponiamo di avere due istruzioni $A$ e $B$ il cui ordine di esecuzione è sequenziale ($A\rightarrow B$).
+    \begin{itemize}
+        \item \textbf{RAW} (\textit{Read After Write}): Se nel program flow $A$ scrive su una locazione di memoria che viene poi letta da $B$, nel caso in cui $B$ viene riordinata prima di $A$, allora $B$ legge un valore non aggiornato.
+        \item \textbf{WAW} (\textit{Write After Write}): Se nel program flow $A$ scrive su una locazione di memoria che viene poi scritta da $B$, nel caso in cui $B$ viene riordinata prima di $A$, allora il valore finale è quello di $A$ non quello che sarebbe stato scritto da $B$.
+        \item \textbf{WAR} (\textit{Write After Read}): Se nel program flow $A$ legge da una locazione di memoria che viene poi scritta da $B$, nel caso in cui $B$ viene riordinata prima di $A$, allora $A$ leggerebbe un valore nel futuro della sua esecuzione, che non avrebbe potuto leggere.
+    \end{itemize}
+\end{proposition}
+Al fine di gestire i \textit{RAW} l'algoritmo tiene traccia di quando i dati richiesti in input dalle istruzioni sono pronti e, non'appena ciò avviene, questa informazione viene propagata verso tutte quelle istruzioni che necessitano quei dati. Per quanto riguarda i \textit{WAW} e i \textit{WAR} l'algoritmo mette in atto il \textbf{\textit{Register Renaiming}}
+%TODO: from here
+\section{Intel x86}\label{sec:x86pipe}
+L'architettura x86 definisce una famiglia di ISA utilizzata poi anche da processori non Intel. Vediamo alcuni chipset che sono stati fondamentali nello sviluppo delle tecniche base di ottimizzazione della pipeline.
+\begin{example}[Intel 8086]\label{ex:8086}
+    Negli anni tra il $'76$ e il $'78$ intel propose il chipset 8086, con 14 registri e in grado di processare le istruzioni senza pipeline ma con un ciclo di 4 fasi: \textit{Fetch, Decode, Execute, Retire}.
+
+    In particolare l'istruzione di \textit{Retire} veniva utilizzata per effettuare il commit dell'istruzione al fine di rendere visibili a tutte le risorse esposte dall'ISA i risultati e i side-effects dell'istruzione.
+\end{example}
+\begin{example}[Intel 80486 - i486]\label{ex:i486}
+    Introdotto nell'$89$ l'i486 è un processore con una pipeline a 5 stage, con 2 fasi di decode dovuto al più complesso sistema di indirizzamento della memoria.
+
+    Nonostante la pipeline il processore soffriva di un problema di latenza dovuta ad una forte dipendenza dei dati nel program flow. Ad esempio, per \textbf{scambiare il contenuto di due registri senza un registro d'appoggio} (lecito in programmazione di sistema dove tutti i registri sono fondamentali) \textbf{e senza accesso in memoria} (per non rendere il program-flow memory bound) l'unica cosa da fare è usare una sequenza di tre $XOR$ del tipo: 
+    \[
+        XOR(a,b), XOR(b,a), XOR(a,b)
+    \]
+    In questo modo si ottiene che la destinazione coincide con la sorgente, rendendo necessario l'inserimento di stalli per evitare che il risultato di una XOR venga utilizzato prima che sia stato calcolato.
+\end{example}
+\begin{example}[Pentium Pro]\label{ex:pentiumpro}
+     Questo chipset introduce il concetto di \textbf{superscalarità} di una pipeline, ovvero la possibilità di esegure più istruzioni che svolgono la stessa operazione in modo parallelo, sfruttando \textbf{risorse hardware duplicate}. 
+\end{example}
+Prendiamo il Pentium Pro come esempio per descrivere i concetti dell'OOO-Execution. Questo processore utilizzava una ridondanza a livello hardware per eseguire gli stage di EX di più istruzioni contemporaneamente. Questo portò allo sviluppo di un modo per risolvere il cosiddetto:
+\begin{problem}[Instruction Time Span Problem]\label{prob:itsp}
+    Istruzioni che vengono eseguite contemporamenaente possono avere un tempo di esecuzione diverso, portando le linee di pipeline che processano istruzioni veloci a restare in attesa di linee più congestionate richiedendo più cicli di clock per essere finalizzate.
+\end{problem}
+Infatti quello che in una pipeline tradizionale sarebbe stato risolto inserendo degli stall, in una pipeline superscalare con OOO-Ex viene risolto facendo rescheduling in modo tale da sfruttare le risorse duplicate (come una seconda ALU), per eseguire altre istruzioni e infine \textbf{preservare} il commit order (ovvero l'ordine in cui il programmatore vorrebbe che le istruzioni vengano eseguite).
+
+\section{Exception Handling}\label{sec:excep}
+Nel contesto delle pipeline out of order il modo con cui vengono gestite le eccezioni ha un aspetto rilevante per la sicurezza. In particolare, a causa del riordinamento delle istruzioni potrebbe succedere che l'esecuzione (concorrente e speculativa) di un'istruzione potrebbe sollevare un'eccezione anche quando questa \textbf{non appartiene} al program flow. Vediamo un esempio:
+\begin{example}[Phantom Exception]\label{ex:phantom_excep}
+    Supponiamo di avere in pipe l'istruzione A e l'istruzione B. Supponiamo che sia A che B generino eccezioni e supponiamo che B sorpassi A per qualche motivo (riordinamento o esecuzione speculativa).
+
+    In questo contesto il processore vede l'eccezione di B prima che avvenga quella di A, ma essendo A precedente a B nel program-flow \textbf{tutte} le istruzioni \textbf{successive ad A non} dovevano essere eseguite. Ciò significa che \textbf{nemmeno B doveva essere eseguita}, impedendogli di generare l'eccezione.
+\end{example}
+Quando queste \textit{phantom-exceptions} vengono eseguite in modo speculativo possono portare a \textbf{side-effects} non voluti, come ad esempio la modifica di registri che non dovrebbero essere modificati. Questo è un problema di sicurezza, in quanto potrebbe portare ad eseguire codice non voluto. Le vulnerabilità più famose tra queste sono \textbf{Spectre} e \textbf{Meltdown}.
